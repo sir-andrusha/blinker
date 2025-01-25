@@ -146,14 +146,6 @@ void tcp_client_write_task(void* arg)
     char mac_str[19] = { 0 };
     sprintf(mac_str, MACSTR, MAC2STR(sta_mac));
 
-
-    struct in_addr ip_struct;
-    esp_netif_ip_info_t sta_ip;
-    memset(&sta_ip, 0x0, sizeof(esp_netif_ip_info_t));
-    esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_AP_DEF"), &sta_ip);
-    ip_struct.s_addr = sta_ip.ip.addr;
-
-    uint8_t lvl = esp_mesh_lite_get_level();
     ESP_LOGI(TAG, "HTTP client task is running");
 
     while (1) {
@@ -165,14 +157,19 @@ void tcp_client_write_task(void* arg)
         int content_length = 0;
 
         esp_http_client_config_t config = {
-            .url = "http://192.168.5.1:8080",
+            .url = "http://"CONFIG_SERVER_IP,
         };
         esp_http_client_handle_t client = esp_http_client_init(&config);
+
+        esp_netif_ip_info_t sta_ip;
+        memset(&sta_ip, 0x0, sizeof(esp_netif_ip_info_t));
+        esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_AP_DEF"), &sta_ip);
+        uint8_t lvl = esp_mesh_lite_get_level();
 
         // POST Request
         cJSON* item = cJSON_CreateObject();
         cJSON_AddStringToObject(item, "mac", mac_str);
-        cJSON_AddStringToObject(item, "ip", inet_ntoa(ip_struct));
+        cJSON_AddNumberToObject(item, "ip", sta_ip.ip.addr);
         cJSON_AddNumberToObject(item, "level", lvl);
         cJSON_AddNumberToObject(item, "red", 255);
         cJSON_AddNumberToObject(item, "green", 255);
@@ -181,7 +178,8 @@ void tcp_client_write_task(void* arg)
         const char* post_data = cJSON_Print(item);
         cJSON_Delete(item);
 
-        esp_http_client_set_url(client, "http://192.168.5.1:8080/api/v1/registry");
+        // ESP_LOGI(TAG, "Sending data: %s", post_data);
+        esp_http_client_set_url(client, "http://"CONFIG_SERVER_IP"/api/v1/registry");
         esp_http_client_set_method(client, HTTP_METHOD_POST);
         esp_http_client_set_header(client, "Content-Type", "application/json");
         esp_err_t err = esp_http_client_open(client, strlen(post_data));
