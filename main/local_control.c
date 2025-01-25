@@ -22,54 +22,7 @@
 
 #define PAYLOAD_LEN       (1456) /**< Max payload size(in bytes) */
 
-static int g_sockfd = -1;
 static const char* TAG = "local_control";
-
-/**
- * @brief Create a tcp client
- */
-static int socket_tcp_client_create(const char* ip, uint16_t port)
-{
-    ESP_LOGD(TAG, "Create a tcp client, ip: %s, port: %d", ip, port);
-
-    esp_err_t ret = ESP_OK;
-    int sockfd = -1;
-    struct ifreq iface;
-    memset(&iface, 0x0, sizeof(iface));
-    struct sockaddr_in server_addr = {
-        .sin_family = AF_INET,
-        .sin_port = htons(port),
-        .sin_addr.s_addr = inet_addr(ip),
-    };
-
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        ESP_LOGE(TAG, "socket create, sockfd: %d", sockfd);
-        goto ERR_EXIT;
-    }
-
-    esp_netif_get_netif_impl_name(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"), iface.ifr_name);
-    if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE, &iface, sizeof(struct ifreq)) != 0) {
-        ESP_LOGE(TAG, "Bind [sock=%d] to interface %s fail", sockfd, iface.ifr_name);
-    }
-
-    ret = connect(sockfd, (struct sockaddr*)&server_addr, sizeof(struct sockaddr_in));
-    if (ret < 0) {
-        ESP_LOGD(TAG, "socket connect, ret: %d, ip: %s, port: %d",
-            ret, ip, port);
-        goto ERR_EXIT;
-    }
-    return sockfd;
-
-ERR_EXIT:
-
-    if (sockfd != -1) {
-        close(sockfd);
-    }
-
-    return -1;
-}
-
 
 #include "led_strip.h"
 #define BLINK_GPIO 48
@@ -136,12 +89,7 @@ static void light_refresh(void* arg) {
 
 void tcp_client_write_task(void* arg)
 {
-    size_t size = 0;
-    int count = 0;
-    char* data = NULL;
-    esp_err_t ret = ESP_OK;
     uint8_t sta_mac[6] = { 0 };
-
     esp_wifi_get_mac(ESP_IF_WIFI_STA, sta_mac);
     char mac_str[19] = { 0 };
     sprintf(mac_str, MACSTR, MAC2STR(sta_mac));
